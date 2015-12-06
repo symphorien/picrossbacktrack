@@ -1,0 +1,4 @@
+[package]
+name = "picrossbacktrack"
+version = "0.1.0"
+authors = ["Symphorien Gibol <symphorien.gibol@gmail.com>"]
