@@ -1,9 +1,6 @@
-#[derive(Clone, PartialEq, Debug)]
-pub enum Cell {
-    Unknown,
-    Black,
-    White,
-} 
+
+extern crate picross;
+use picross::*;
 
 struct IncreasingSeriesGenerator {
     n: usize,
