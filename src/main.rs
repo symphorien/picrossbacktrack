@@ -1,7 +1,14 @@
+#![feature(iter_arith)]
 
 extern crate picross;
 use picross::*;
 
+/// Iterator yielding all increasing series from 0..n to 0..size
+/// Ex: if size==3 and n==2, the iterator yield
+/// ```
+/// vec![0,1], vec[0,2], vec[1,2]
+/// ```
+/// This iterator should be created with gen_increasing_series
 struct IncreasingSeriesGenerator {
     n: usize,
     size: usize,
@@ -37,6 +44,13 @@ impl Iterator for IncreasingSeriesGenerator {
     }
 }
 
+/// Constructor for IncreasingSeriesGenerator
+/// This function returns an iterator yielding all increasing series from 0..n to 0..size
+/// ```
+/// for series in gen_increasing_series(2, 3) {
+///     // row will be successively vec![0,1], vec[0,2], vec[1,2]
+/// }
+/// ```
 fn gen_increasing_series(n: usize, size: usize) -> IncreasingSeriesGenerator {
     IncreasingSeriesGenerator {
         n: n,
@@ -68,12 +82,40 @@ fn inc_series_to_row(series: &Vec<usize>, spec: &Vec<usize>, row_size: usize) ->
     row
 }
 
-        
+/// Iterator yielding all possible picross rows following the given constraints
+/// It should be created with gen_picross_row
+struct PicrossRowGenerator<'a> {
+    /// size of the row
+    row_size : usize,
+    /// specification of the blocks : &vec![1,2] means a one-cell block and a two-cell block
+    spec : &'a Vec<usize>,
+    inc_series_gen : IncreasingSeriesGenerator,
+}
+
+impl<'a> Iterator for PicrossRowGenerator<'a> {
+    type Item = Vec<Cell>;
+
+    fn next(&mut self) -> Option<Vec<Cell>> {
+        match self.inc_series_gen.next() {
+            Some(vec) => Some(inc_series_to_row(&vec, self.spec, self.row_size)),
+            None => None
+        }
+    }
+}
+
+/// Returns an iterator yielding all possible picross rows following the given constraints :
+/// row_size: size of the row
+/// spec: specification of the blocks : &vec![1,2] means a one-cell block and a two-cell block
+fn gen_picross_rows<'a>(row_size: usize, spec: &'a Vec<usize>) -> PicrossRowGenerator {
+    PicrossRowGenerator {
+        row_size: row_size,
+        spec: spec,
+        inc_series_gen: gen_increasing_series(spec.len(), row_size + 1 - spec.iter().sum::<usize>())
+    }
+}
 
 fn main() {
-    let generator = gen_increasing_series(2, 5);
-    for series in generator  {
-        println!("{:?}", series);
-        println!("{:?}", inc_series_to_row(&series, &vec![1,2], 7));
+    for row in gen_picross_rows(7, &vec![1, 2]) {
+        println!("{:?}", row);
     }
 }
