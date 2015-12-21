@@ -1,5 +1,9 @@
 #![feature(iter_arith)]
 
+use std::fs::*;
+use std::io::BufReader;
+use std::io::BufRead;
+
 extern crate picross;
 use picross::*;
 
@@ -186,33 +190,11 @@ fn backtrack(picross: &mut Picross) -> bool {
 }
 
 fn main() {
-    let data = vec![
-        "9",
-        "9",
-
-        "[3,3]",
-        "[1,1]",
-        "[1,1]",
-        "[1,1]",
-        "[1]",
-        "[1,1]",
-        "[1,1]",
-        "[1,1]",
-        "[3,3]",
-
-        "[1,1]",
-        "[2,2]",
-        "[1,1,1,1]",
-        "[1,1]",
-        "[1]",
-        "[1,1]",
-        "[1,1,1,1]",
-        "[2,2]",
-        "[1,1]",
-        ];
-
-    let mut picross = Picross::parse(&mut data.into_iter());
-    backtrack(&mut picross);
-    println!("{}", picross.to_string());
-    assert!(picross.is_valid())
+    for test_file in read_dir("../data").unwrap() {
+        let f = File::open(test_file.unwrap().path()).unwrap();
+        let mut picross = Picross::parse(&mut BufReader::new(f).lines().map(|x| x.unwrap()));
+        backtrack(&mut picross);
+        println!("{}", picross.to_string());
+        assert!(picross.is_valid())
+    }
 }
