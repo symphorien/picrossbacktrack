@@ -114,8 +114,105 @@ fn gen_picross_rows<'a>(row_size: usize, spec: &'a Vec<usize>) -> PicrossRowGene
     }
 }
 
-fn main() {
-    for row in gen_picross_rows(7, &vec![1, 2]) {
-        println!("{:?}", row);
+fn is_consistent(picross: &Picross) -> bool {
+    for col in 0..picross.length {
+        let mut num_block = 0;
+        let mut size_block = 0;
+        let mut dirty = false; // whether there is an unknown cell in this column
+        for row in 0..picross.height {
+            match picross.cells[row][col] {
+                Cell::Unknown => {dirty = true; break},
+                Cell::Black   => size_block += 1,
+                Cell::White   => {
+                    if size_block > 0 {
+                        if num_block >= picross.col_spec[col].len() || size_block != picross.col_spec[col][num_block] {
+                            //println!("129 {} {}", row, col);
+                            return false;
+                        }
+                        num_block += 1;
+                        size_block = 0;
+                    }
+                }
+            }
+        }
+        if dirty {
+            // just check that the picross could be filled up further
+            if size_block > 0 {
+                if num_block >= picross.col_spec[col].len() || size_block > picross.col_spec[col][num_block] {
+                    return false;
+                }
+                num_block += 1;
+            }
+            if num_block > picross.col_spec[col].len() {
+                return false;
+            }
+        } else {
+            if size_block > 0 {
+                if num_block >= picross.col_spec[col].len() || size_block != picross.col_spec[col][num_block] {
+                    return false;
+                }
+                num_block += 1;
+            }
+            if num_block != picross.col_spec[col].len() {
+                return false;
+            }
+        };
+    };
+    true 
+}
+
+fn backtrack_from(picross: &mut Picross, start_row: usize) -> bool {
+    if start_row == picross.height {
+        return true;
     }
+    let original_row = picross.cells[start_row].clone();
+    for test_row in gen_picross_rows(picross.length, &picross.row_spec[start_row].clone()) {
+        picross.cells[start_row] = test_row;
+        if is_consistent(picross) {
+            if backtrack_from(picross, start_row + 1) {
+                return true;
+            }
+        }
+    }
+    picross.cells[start_row] = original_row;
+    false
+}
+
+/// Fills picross with the first solution it finds.
+/// If no solution is found, picross is left untouched.
+/// Returns whether a solution has been found.
+fn backtrack(picross: &mut Picross) -> bool {
+    backtrack_from(picross, 0)
+}
+
+fn main() {
+    let data = vec![
+        "9",
+        "9",
+
+        "[3,3]",
+        "[1,1]",
+        "[1,1]",
+        "[1,1]",
+        "[1]",
+        "[1,1]",
+        "[1,1]",
+        "[1,1]",
+        "[3,3]",
+
+        "[1,1]",
+        "[2,2]",
+        "[1,1,1,1]",
+        "[1,1]",
+        "[1]",
+        "[1,1]",
+        "[1,1,1,1]",
+        "[2,2]",
+        "[1,1]",
+        ];
+
+    let mut picross = Picross::parse(&mut data.into_iter());
+    backtrack(&mut picross);
+    println!("{}", picross.to_string());
+    assert!(picross.is_valid())
 }
