@@ -1,6 +1,7 @@
 [package]
 name = "picrossbacktrack"
 version = "0.1.0"
-authors = ["Symphorien Gibol <symphorien.gibol@gmail.com>"]
+authors = ["Symphorien Gibol <symphorien.gibol@gmail.com>", "Léo Gaspard <leo@gaspard.io>"]
+
 [dependencies]
 picross = { git = "https://github.com/Ekleog/picross" }
