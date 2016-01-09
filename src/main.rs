@@ -180,7 +180,7 @@ fn backtrack_from(picross: &mut Picross, start_row: usize) -> bool {
     false
 }
 
-/// Fills picross with the first solution it finds.
+/// Fills picross with the first solution at finds.
 /// If no solution is found, picross is left untouched.
 /// Returns whether a solution has been found.
 fn backtrack(picross: &mut Picross) -> bool {
