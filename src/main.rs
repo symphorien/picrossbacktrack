@@ -1,5 +1,3 @@
-#![feature(iter_arith)]
-
 use std::fs::*;
 use std::io::BufReader;
 use std::io::BufRead;
@@ -114,7 +112,7 @@ fn gen_picross_rows<'a>(row_size: usize, spec: &'a Vec<usize>) -> PicrossRowGene
     PicrossRowGenerator {
         row_size: row_size,
         spec: spec,
-        inc_series_gen: gen_increasing_series(spec.len(), row_size + 1 - spec.iter().sum::<usize>())
+        inc_series_gen: gen_increasing_series(spec.len(), row_size + 1 - spec.iter().fold(0, |sum, x| sum + x))
     }
 }
 
