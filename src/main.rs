@@ -128,7 +128,6 @@ fn is_consistent(picross: &Picross) -> bool {
                 Cell::White   => {
                     if size_block > 0 {
                         if num_block >= picross.col_spec[col].len() || size_block != picross.col_spec[col][num_block] {
-                            //println!("129 {} {}", row, col);
                             return false;
                         }
                         num_block += 1;
@@ -138,7 +137,7 @@ fn is_consistent(picross: &Picross) -> bool {
             }
         }
         if dirty {
-            // just check that the picross could be filled up further
+            // we stumbled upon an unknown cell, just check that the picross could be filled up further
             if size_block > 0 {
                 if num_block >= picross.col_spec[col].len() || size_block > picross.col_spec[col][num_block] {
                     return false;
@@ -149,6 +148,7 @@ fn is_consistent(picross: &Picross) -> bool {
                 return false;
             }
         } else {
+            // we got to the end of the column, check the last block has exactly the good size
             if size_block > 0 {
                 if num_block >= picross.col_spec[col].len() || size_block != picross.col_spec[col][num_block] {
                     return false;
@@ -160,7 +160,7 @@ fn is_consistent(picross: &Picross) -> bool {
             }
         };
     };
-    true 
+    true
 }
 
 /// Checks whether new is a picross row filling old, which means no known cell changes value.
