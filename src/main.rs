@@ -128,7 +128,6 @@ fn is_consistent(picross: &Picross) -> bool {
                 Cell::White   => {
                     if size_block > 0 {
                         if num_block >= picross.col_spec[col].len() || size_block != picross.col_spec[col][num_block] {
-                            //println!("129 {} {}", row, col);
                             return false;
                         }
                         num_block += 1;
@@ -138,7 +137,7 @@ fn is_consistent(picross: &Picross) -> bool {
             }
         }
         if dirty {
-            // just check that the picross could be filled up further
+            // we stumbled upon an unknown cell, just check that the picross could be filled up further
             if size_block > 0 {
                 if num_block >= picross.col_spec[col].len() || size_block > picross.col_spec[col][num_block] {
                     return false;
@@ -149,6 +148,7 @@ fn is_consistent(picross: &Picross) -> bool {
                 return false;
             }
         } else {
+            // we got to the end of the column, check the last block has exactly the good size
             if size_block > 0 {
                 if num_block >= picross.col_spec[col].len() || size_block != picross.col_spec[col][num_block] {
                     return false;
@@ -160,7 +160,7 @@ fn is_consistent(picross: &Picross) -> bool {
             }
         };
     };
-    true 
+    true
 }
 
 /// Checks whether new is a picross row filling old, which means no known cell changes value.
@@ -171,6 +171,43 @@ fn is_row_consistent_with(old: &Vec<Cell>, new: &Vec<Cell>) -> bool {
             (_, &Cell::Unknown) => false,
             (old_known, new_known) => old_known == new_known
         })
+}
+
+fn gcd<T> (start_row: &Vec<Cell>, mut possible_rows: T) -> (Vec<Cell>, bool) where T: Iterator<Item=Vec<Cell>> {
+    let mut gcd = possible_rows.find(|row| is_row_consistent_with(start_row, row)).expect("No solution to this picross");
+    for row in possible_rows {
+        if is_row_consistent_with(start_row, &row) {
+            for pair in (&mut gcd).iter_mut().zip(row.iter()) {
+                match pair {
+                    (&mut Cell::Unknown, _) => (),
+                    (mut known, new) => if new != known {*known = Cell::Unknown}
+                }
+            }
+        }
+    }
+    let dirty = start_row.iter().zip(gcd.iter()).any(|(x, y)| x != y);
+    (gcd, dirty)
+}
+
+fn combex_rows(picross: &mut Picross) -> bool {
+    let mut dirty = false;
+    for (row, spec) in picross.cells.iter_mut().zip(picross.row_spec.iter()) {
+        let res = gcd(&row, gen_picross_rows(picross.length, spec));
+        *row = res.0;
+        dirty |= res.1;
+    }
+    dirty
+}
+
+fn combex_cols(picross: &mut Picross) -> bool {
+    let mut dirty = false;
+    let col_spec = picross.col_spec.iter().cloned().collect::<Vec<Vec<usize>>>();
+    for (i, (column, spec)) in picross.transpose().iter().zip(col_spec).enumerate() {
+        let res = gcd(&column, gen_picross_rows(picross.height, &spec));
+        picross.set_col(i, res.0);
+        dirty |= res.1;
+    }
+    dirty
 }
 
 fn backtrack_from(picross: &mut Picross, start_row: usize) -> bool {
@@ -197,6 +234,7 @@ fn backtrack_from(picross: &mut Picross, start_row: usize) -> bool {
 /// If no solution is found, picross is left untouched.
 /// Returns whether a solution has been found.
 fn backtrack(picross: &mut Picross) -> bool {
+    while combex_rows(picross) | combex_cols(picross) {};
     backtrack_from(picross, 0)
 }
 
@@ -204,10 +242,8 @@ fn main() {
     for test_file in read_dir("../data").unwrap() {
         let f = File::open(test_file.unwrap().path()).unwrap();
         let mut picross = Picross::parse(&mut BufReader::new(f).lines().map(|x| x.unwrap()));
-        // se forcer à voir un X
-        if picross.length == 9 {
-            picross.cells[4][4]=Cell::Black;
-        }
+        assert_eq!(picross.length, picross.cells[0].len());
+        assert_eq!(picross.height, picross.cells.len());
         backtrack(&mut picross);
         println!("{}", picross.to_string());
         assert!(picross.is_valid())
