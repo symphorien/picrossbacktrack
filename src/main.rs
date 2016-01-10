@@ -173,23 +173,37 @@ fn is_row_consistent_with(old: &Vec<Cell>, new: &Vec<Cell>) -> bool {
         })
 }
 
+fn gcd(start_row: &Vec<Cell>, mut possible_rows: PicrossRowGenerator) -> (Vec<Cell>, Vec<Vec<Cell>>) {
+    let mut gcd = possible_rows.find(|row| is_row_consistent_with(start_row, row)).expect("No possibility...");
+    let mut filtered_rows = vec!(gcd.clone());
+    for row in possible_rows {
+        if is_row_consistent_with(start_row, &row) {
+            for pair in (&mut gcd).iter_mut().zip(row.iter()) {
+                match pair {
+                    (&mut Cell::Unknown, _) => (),
+                    (mut known, new) => if new != known {*known = Cell::Unknown}
+                }
+            }
+            filtered_rows.push(row);
+        }
+    }
+    (gcd, filtered_rows)
+}
+
 fn backtrack_from(picross: &mut Picross, start_row: usize) -> bool {
     if start_row == picross.height {
         return true;
     }
-    let original_row = picross.cells[start_row].clone();
-    let unknown_original_row = original_row.iter().all(|x| x == &Cell::Unknown);
-    for test_row in gen_picross_rows(picross.length, &picross.row_spec[start_row].clone()) {
-        if unknown_original_row || is_row_consistent_with(&original_row, &test_row) {
-            picross.cells[start_row] = test_row;
-            if is_consistent(picross) {
-                if backtrack_from(picross, start_row + 1) {
-                    return true;
-                }
+    let (gcd_row, possible_rows) = gcd(&picross.cells[start_row], gen_picross_rows(picross.length, &picross.row_spec[start_row]) );
+    for test_row in possible_rows {
+        picross.cells[start_row] = test_row;
+        if is_consistent(picross) {
+            if backtrack_from(picross, start_row + 1) {
+                return true;
             }
         }
     }
-    picross.cells[start_row] = original_row;
+    picross.cells[start_row] = gcd_row;
     false
 }
 
