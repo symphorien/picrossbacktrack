@@ -173,9 +173,8 @@ fn is_row_consistent_with(old: &Vec<Cell>, new: &Vec<Cell>) -> bool {
         })
 }
 
-fn gcd(start_row: &Vec<Cell>, mut possible_rows: PicrossRowGenerator) -> (Vec<Cell>, Vec<Vec<Cell>>) {
-    let mut gcd = possible_rows.find(|row| is_row_consistent_with(start_row, row)).expect("No possibility...");
-    let mut filtered_rows = vec!(gcd.clone());
+fn gcd<T> (start_row: &Vec<Cell>, mut possible_rows: T) -> (Vec<Cell>, bool) where T: Iterator<Item=Vec<Cell>> {
+    let mut gcd = possible_rows.find(|row| is_row_consistent_with(start_row, row)).expect("No solution to this picross");
     for row in possible_rows {
         if is_row_consistent_with(start_row, &row) {
             for pair in (&mut gcd).iter_mut().zip(row.iter()) {
@@ -184,33 +183,57 @@ fn gcd(start_row: &Vec<Cell>, mut possible_rows: PicrossRowGenerator) -> (Vec<Ce
                     (mut known, new) => if new != known {*known = Cell::Unknown}
                 }
             }
-            filtered_rows.push(row);
         }
     }
-    (gcd, filtered_rows)
+    let dirty = start_row.iter().zip(gcd.iter()).any(|(x, y)| x != y);
+    (gcd, dirty)
+}
+
+fn combex_rows(picross: &mut Picross) -> bool {
+    let mut dirty = false;
+    for (row, spec) in picross.cells.iter_mut().zip(picross.row_spec.iter()) {
+        let res = gcd(&row, gen_picross_rows(picross.length, spec));
+        *row = res.0;
+        dirty |= res.1;
+    }
+    dirty
+}
+
+fn combex_cols(picross: &mut Picross) -> bool {
+    let mut dirty = false;
+    let col_spec = picross.col_spec.iter().cloned().collect::<Vec<Vec<usize>>>();
+    for (i, (column, spec)) in picross.transpose().iter().zip(col_spec).enumerate() {
+        let res = gcd(&column, gen_picross_rows(picross.height, &spec));
+        picross.set_col(i, res.0);
+        dirty |= res.1;
+    }
+    dirty
 }
 
 fn backtrack_from(picross: &mut Picross, start_row: usize) -> bool {
     if start_row == picross.height {
         return true;
     }
-    let (gcd_row, possible_rows) = gcd(&picross.cells[start_row], gen_picross_rows(picross.length, &picross.row_spec[start_row]) );
-    for test_row in possible_rows {
-        picross.cells[start_row] = test_row;
-        if is_consistent(picross) {
-            if backtrack_from(picross, start_row + 1) {
-                return true;
+    let original_row = picross.cells[start_row].clone();
+    let unknown_original_row = original_row.iter().all(|x| x == &Cell::Unknown);
+    for test_row in gen_picross_rows(picross.length, &picross.row_spec[start_row].clone()) {
+        if unknown_original_row || is_row_consistent_with(&original_row, &test_row) {
+            picross.cells[start_row] = test_row;
+            if is_consistent(picross) {
+                if backtrack_from(picross, start_row + 1) {
+                    return true;
+                }
             }
         }
     }
-    picross.cells[start_row] = gcd_row;
+    picross.cells[start_row] = original_row;
     false
 }
-
 /// Fills picross with the first solution at finds.
 /// If no solution is found, picross is left untouched.
 /// Returns whether a solution has been found.
 fn backtrack(picross: &mut Picross) -> bool {
+    while combex_rows(picross) | combex_cols(picross) {};
     backtrack_from(picross, 0)
 }
 
@@ -218,10 +241,8 @@ fn main() {
     for test_file in read_dir("../data").unwrap() {
         let f = File::open(test_file.unwrap().path()).unwrap();
         let mut picross = Picross::parse(&mut BufReader::new(f).lines().map(|x| x.unwrap()));
-        // se forcer à voir un X
-        if picross.length == 9 {
-            picross.cells[4][4]=Cell::Black;
-        }
+        assert_eq!(picross.length, picross.cells[0].len());
+        assert_eq!(picross.height, picross.cells.len());
         backtrack(&mut picross);
         println!("{}", picross.to_string());
         assert!(picross.is_valid())
