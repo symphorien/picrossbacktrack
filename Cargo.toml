@@ -5,3 +5,4 @@ authors = ["Symphorien Gibol <symphorien.gibol@gmail.com>", "Léo Gaspard <leo@g
 
 [dependencies]
 picross = { git = "https://github.com/Ekleog/picross" }
+sfml="0.9.3"

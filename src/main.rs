@@ -1,9 +1,15 @@
+use std::cmp;
 use std::fs::*;
 use std::io::BufReader;
 use std::io::BufRead;
 
 extern crate picross;
 use picross::*;
+
+extern crate sfml;
+use sfml::system::Vector2f;
+use sfml::window::{ContextSettings, VideoMode, event, Close};
+use sfml::graphics::{RenderWindow, RenderTarget, RectangleShape, Color};
 
 /// Iterator yielding all increasing series from 0..n to 0..size
 /// Ex: if size==3 and n==2, the iterator yield
@@ -189,38 +195,45 @@ fn gcd<T> (start_row: &Vec<Cell>, mut possible_rows: T) -> (Vec<Cell>, bool) whe
     (gcd, dirty)
 }
 
-fn combex_rows(picross: &mut Picross) -> bool {
+fn combex_rows(picross: &mut Picross, w: &mut RenderWindow) -> bool {
     let mut dirty = false;
-    for (row, spec) in picross.cells.iter_mut().zip(picross.row_spec.iter()) {
-        let res = gcd(&row, gen_picross_rows(picross.length, spec));
-        *row = res.0;
+    for (row, spec) in (0..picross.cells.len()).zip(picross.row_spec.iter()) {
+        let res = gcd(&picross.cells[row], gen_picross_rows(picross.length, spec));
+        picross.cells[row] = res.0;
         dirty |= res.1;
+        if res.1 {
+            draw(w, &*picross);
+        }
     }
     dirty
 }
 
-fn combex_cols(picross: &mut Picross) -> bool {
+fn combex_cols(picross: &mut Picross, w: &mut RenderWindow) -> bool {
     let mut dirty = false;
     let col_spec = picross.col_spec.iter().cloned().collect::<Vec<Vec<usize>>>();
     for (i, (column, spec)) in picross.transpose().iter().zip(col_spec).enumerate() {
         let res = gcd(&column, gen_picross_rows(picross.height, &spec));
         picross.set_col(i, res.0);
         dirty |= res.1;
+        if res.1 {
+            draw(w, &picross);
+        }
     }
     dirty
 }
 
-fn backtrack_from(picross: &mut Picross, start_row: usize) -> bool {
+fn backtrack_from(picross: &mut Picross, start_row: usize, w: &mut RenderWindow) -> bool {
     if start_row == picross.height {
         return true;
     }
     let original_row = picross.cells[start_row].clone();
     let unknown_original_row = original_row.iter().all(|x| x == &Cell::Unknown);
     for test_row in gen_picross_rows(picross.length, &picross.row_spec[start_row].clone()) {
+        draw(w, &picross);
         if unknown_original_row || is_row_consistent_with(&original_row, &test_row) {
             picross.cells[start_row] = test_row;
             if is_consistent(picross) {
-                if backtrack_from(picross, start_row + 1) {
+                if backtrack_from(picross, start_row + 1, w) {
                     return true;
                 }
             }
@@ -233,19 +246,76 @@ fn backtrack_from(picross: &mut Picross, start_row: usize) -> bool {
 /// Fills picross with the first solution it finds.
 /// If no solution is found, picross is left untouched.
 /// Returns whether a solution has been found.
-fn backtrack(picross: &mut Picross) -> bool {
-    while combex_rows(picross) | combex_cols(picross) {};
-    backtrack_from(picross, 0)
+fn backtrack(picross: &mut Picross, w: &mut RenderWindow) -> bool {
+    while combex_rows(picross, w) | combex_cols(picross, w) {
+        draw(w, &picross);
+    }
+    backtrack_from(picross, 0, w)
+}
+
+/// Draws `Picross` `p` to `RenderWindow` `w`
+/// Assumes `w` is 600x600
+fn draw(w: &mut RenderWindow, p: &Picross) {
+    w.clear(&Color::new_rgb(127, 127, 127));
+
+    let sq_side = 600. / (cmp::max(p.height, p.length) as f32);
+
+    let mut sq = match RectangleShape::new() {
+        Some(sq) => sq,
+        None     => panic!("Error, cannot create square")
+    };
+    sq.set_size(&Vector2f::new(sq_side - 2., sq_side - 2.));
+
+    for y in 0..p.height {
+        for x in 0..p.length {
+            sq.set_position(&Vector2f::new((x as f32) * sq_side + 1., (y as f32) * sq_side + 1.));
+            sq.set_fill_color(&match p.cells[y][x] {
+                Cell::Black => Color::black(),
+                Cell::White => Color::white(),
+                Cell::Unknown => Color::new_rgb(128, 128, 128)
+            });
+            w.draw(&sq);
+        }
+    }
+
+    w.display();
+
+    for event in w.events() {
+        match event {
+            event::Closed => { panic!("Interrupted") },
+            _             => { /* ignore */ }
+        }
+    }
 }
 
 fn main() {
+    let mut window = match RenderWindow::new(VideoMode::new_init(600, 600, 32),
+                                             "Picross",
+                                             Close,
+                                             &ContextSettings::default()) {
+        Some(window) => window,
+        None => panic!("Cannot create a new Render Window.")
+    };
+
     for test_file in read_dir("../data").unwrap() {
         let f = File::open(test_file.unwrap().path()).unwrap();
         let mut picross = Picross::parse(&mut BufReader::new(f).lines().map(|x| x.unwrap()));
         assert_eq!(picross.length, picross.cells[0].len());
         assert_eq!(picross.height, picross.cells.len());
-        backtrack(&mut picross);
+        backtrack(&mut picross, &mut window);
         println!("{}", picross.to_string());
-        assert!(picross.is_valid())
+        assert!(picross.is_valid());
+
+        println!("Press any key to solve next picross");
+        let mut waiting = true;
+        while waiting {
+            for event in window.events() {
+                match event {
+                    event::Closed => panic!("Interrupted"),
+                    event::KeyReleased { code: _, alt: _, ctrl: _, shift: _, system: _ } => waiting = false,
+                    _ => { /* ignore */ }
+                }
+            }
+        }
     }
 }
