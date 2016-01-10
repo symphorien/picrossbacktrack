@@ -163,16 +163,29 @@ fn is_consistent(picross: &Picross) -> bool {
     true 
 }
 
+/// Checks whether new is a picross row filling old, which means no known cell changes value.
+fn is_row_consistent_with(old: &Vec<Cell>, new: &Vec<Cell>) -> bool {
+    old.iter().zip(new.iter()).all(|pair|
+        match pair {
+            (&Cell::Unknown, _) => true,
+            (_, &Cell::Unknown) => false,
+            (old_known, new_known) => old_known == new_known
+        })
+}
+
 fn backtrack_from(picross: &mut Picross, start_row: usize) -> bool {
     if start_row == picross.height {
         return true;
     }
     let original_row = picross.cells[start_row].clone();
+    let unknown_original_row = original_row.iter().all(|x| x == &Cell::Unknown);
     for test_row in gen_picross_rows(picross.length, &picross.row_spec[start_row].clone()) {
-        picross.cells[start_row] = test_row;
-        if is_consistent(picross) {
-            if backtrack_from(picross, start_row + 1) {
-                return true;
+        if unknown_original_row || is_row_consistent_with(&original_row, &test_row) {
+            picross.cells[start_row] = test_row;
+            if is_consistent(picross) {
+                if backtrack_from(picross, start_row + 1) {
+                    return true;
+                }
             }
         }
     }
@@ -191,6 +204,10 @@ fn main() {
     for test_file in read_dir("../data").unwrap() {
         let f = File::open(test_file.unwrap().path()).unwrap();
         let mut picross = Picross::parse(&mut BufReader::new(f).lines().map(|x| x.unwrap()));
+        // se forcer à voir un X
+        if picross.length == 9 {
+            picross.cells[4][4]=Cell::Black;
+        }
         backtrack(&mut picross);
         println!("{}", picross.to_string());
         assert!(picross.is_valid())
