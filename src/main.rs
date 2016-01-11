@@ -1,7 +1,12 @@
 use std::cmp;
+use std::env;
 use std::fs::*;
 use std::io::BufReader;
 use std::io::BufRead;
+use std::path::Path;
+
+extern crate argparse;
+use argparse::{ArgumentParser, Store, StoreTrue};
 
 extern crate picross;
 use picross::*;
@@ -256,65 +261,83 @@ fn backtrack(picross: &mut Picross, w: &mut RenderWindow) -> bool {
 /// Draws `Picross` `p` to `RenderWindow` `w`
 /// Assumes `w` is 600x600
 fn draw(w: &mut RenderWindow, p: &Picross) {
-    w.clear(&Color::new_rgb(127, 127, 127));
+    if match env::var("sync") {
+        Ok(val) =>val.len()>0,
+        Err(_) => false
+    } {
+        w.clear(&Color::new_rgb(127, 127, 127));
 
-    let sq_side = 600. / (cmp::max(p.height, p.length) as f32);
+        let sq_side = 600. / (cmp::max(p.height, p.length) as f32);
 
-    let mut sq = match RectangleShape::new() {
-        Some(sq) => sq,
-        None     => panic!("Error, cannot create square")
-    };
-    sq.set_size(&Vector2f::new(sq_side - 2., sq_side - 2.));
+        let mut sq = match RectangleShape::new() {
+            Some(sq) => sq,
+            None     => panic!("Error, cannot create square")
+        };
+        sq.set_size(&Vector2f::new(sq_side - 2., sq_side - 2.));
 
-    for y in 0..p.height {
-        for x in 0..p.length {
-            sq.set_position(&Vector2f::new((x as f32) * sq_side + 1., (y as f32) * sq_side + 1.));
-            sq.set_fill_color(&match p.cells[y][x] {
-                Cell::Black => Color::black(),
-                Cell::White => Color::white(),
-                Cell::Unknown => Color::new_rgb(128, 128, 128)
-            });
-            w.draw(&sq);
+        for y in 0..p.height {
+            for x in 0..p.length {
+                sq.set_position(&Vector2f::new((x as f32) * sq_side + 1., (y as f32) * sq_side + 1.));
+                sq.set_fill_color(&match p.cells[y][x] {
+                    Cell::Black => Color::black(),
+                    Cell::White => Color::white(),
+                    Cell::Unknown => Color::new_rgb(128, 128, 128)
+                });
+                w.draw(&sq);
+            }
         }
-    }
 
-    w.display();
+        w.display();
 
-    for event in w.events() {
-        match event {
-            event::Closed => { panic!("Interrupted") },
-            _             => { /* ignore */ }
+        for event in w.events() {
+            match event {
+                event::Closed => { panic!("Interrupted") },
+                _             => { /* ignore */ }
+            }
         }
     }
 }
 
 fn main() {
+    let mut file = "".to_owned();
+    let mut sync = false;
+    {
+        let mut ap = ArgumentParser::new();
+        ap.set_description("Solves a picross grid.");
+        ap.refer(&mut sync)
+            .add_option(&["-s", "--sync"], StoreTrue,
+                        "Display picross solving synchonously");
+        ap.refer(&mut file).required()
+            .add_argument("file", Store,
+                          "File to solve");
+        ap.parse_args_or_exit();
+    }
+    env::set_var("sync", if sync {"1"} else {""});
     let mut window = match RenderWindow::new(VideoMode::new_init(600, 600, 32),
-                                             "Picross",
-                                             Close,
-                                             &ContextSettings::default()) {
+    "Picross",
+    Close,
+    &ContextSettings::default()) {
         Some(window) => window,
         None => panic!("Cannot create a new Render Window.")
     };
 
-    for test_file in read_dir("../data").unwrap() {
-        let f = File::open(test_file.unwrap().path()).unwrap();
-        let mut picross = Picross::parse(&mut BufReader::new(f).lines().map(|x| x.unwrap()));
-        assert_eq!(picross.length, picross.cells[0].len());
-        assert_eq!(picross.height, picross.cells.len());
-        backtrack(&mut picross, &mut window);
-        println!("{}", picross.to_string());
-        assert!(picross.is_valid());
-
-        println!("Press any key to solve next picross");
-        let mut waiting = true;
-        while waiting {
-            for event in window.events() {
-                match event {
-                    event::Closed => panic!("Interrupted"),
-                    event::KeyReleased { code: _, alt: _, ctrl: _, shift: _, system: _ } => waiting = false,
-                    _ => { /* ignore */ }
-                }
+    let f = File::open(Path::new(&file)).expect(&format!("Could not open {}", file));
+    let mut picross = Picross::parse(&mut BufReader::new(f).lines().map(|x| x.expect("Read error")));
+    assert_eq!(picross.length, picross.cells[0].len());
+    assert_eq!(picross.height, picross.cells.len());
+    backtrack(&mut picross, &mut window);
+    println!("{}", picross.to_string());
+    assert!(picross.is_valid());
+    env::set_var("sync", "1");
+    draw(&mut window, &mut picross);
+    println!("Press any key to quit");
+    let mut waiting = true;
+    while waiting {
+        for event in window.events() {
+            match event {
+                event::Closed => panic!("Interrupted"),
+                event::KeyReleased { code: _, alt: _, ctrl: _, shift: _, system: _ } => waiting = false,
+                _ => { /* ignore */ }
             }
         }
     }
