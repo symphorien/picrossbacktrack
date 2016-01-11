@@ -121,14 +121,21 @@ fn backtrack_from(picross: &mut Picross, start_row: usize, w: &mut RenderWindow)
     }
     let original_row = picross.cells[start_row].clone();
     let unknown_original_row = original_row.iter().all(|x| x == &Cell::Unknown);
+    let known_original_row = original_row.iter().all(|x| x != &Cell::Unknown);
     draw(w, &picross); // Do not draw *every* backtracking, to save time due to vertical sync
-                       // To draw every step, just move this line into the for loop
-    for test_row in picross.possible_rows[start_row].clone().iter() {
-        if unknown_original_row || is_row_consistent_with(&original_row, &test_row) {
-            picross.cells[start_row] = test_row.clone();
-            if is_consistent(picross) {
-                if backtrack_from(picross, start_row + 1, w) {
-                    return true;
+    // To draw every step, just move this line into the for loop
+    if known_original_row {
+        if backtrack_from(picross, start_row + 1, w) {
+            return true;
+        }
+    } else {
+        for test_row in picross.possible_rows[start_row].clone().iter() {
+            if unknown_original_row || is_row_consistent_with(&original_row, &test_row) {
+                picross.cells[start_row] = test_row.clone();
+                if is_consistent(picross) {
+                    if backtrack_from(picross, start_row + 1, w) {
+                        return true;
+                    }
                 }
             }
         }
